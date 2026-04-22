@@ -1,4 +1,3 @@
-
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import {
@@ -8,7 +7,6 @@ import {
 import { useAuth }   from '../context/AuthContext.jsx';
 import { searchAPI } from '../api/index.js';
 
-/* ─── tiny debounce hook ──────────────────────────────────────────────────── */
 function useDebounce(value, delay) {
   const [debounced, setDebounced] = useState(value);
   useEffect(() => {
