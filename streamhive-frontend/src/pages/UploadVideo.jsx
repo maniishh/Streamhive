@@ -16,6 +16,7 @@ export default function UploadVideo() {
   const [videoDragOver, setVideoDragOver] = useState(false);
   const [loading, setLoading]         = useState(false);
   const [progress, setProgress]       = useState(0);
+  const [uploadPhase, setUploadPhase] = useState('idle'); // 'idle' | 'uploading' | 'processing'
   const [done, setDone]               = useState(false);
   const [uploadedId, setUploadedId]   = useState(null);
 
@@ -44,7 +45,8 @@ export default function UploadVideo() {
     if (!form.description.trim()) { toast.error('Description is required'); return; }
 
     setLoading(true);
-    setProgress(10);
+    setProgress(0);
+    setUploadPhase('uploading');
 
     const fd = new FormData();
     fd.append('title', form.title);
@@ -53,11 +55,16 @@ export default function UploadVideo() {
     fd.append('thumbnail', thumbnail);
 
     try {
-      // Simulate progress
-      const interval = setInterval(() => setProgress(p => Math.min(p + 8, 88)), 800);
-      const { data } = await videoAPI.publish(fd);
-      clearInterval(interval);
+      const { data } = await videoAPI.publish(fd, (progressEvent) => {
+        if (progressEvent.lengthComputable) {
+          // Scale client→server upload to 0–90%
+          const pct = Math.round((progressEvent.loaded / progressEvent.total) * 90);
+          setProgress(pct);
+          if (pct >= 90) setUploadPhase('processing'); // server is now uploading to Cloudinary
+        }
+      });
       setProgress(100);
+      setUploadPhase('idle');
       setDone(true);
       setUploadedId(data.data?._id);
       toast.success('Video published successfully!');
@@ -65,6 +72,7 @@ export default function UploadVideo() {
       toast.error(err.response?.data?.message || 'Upload failed');
       setLoading(false);
       setProgress(0);
+      setUploadPhase('idle');
     }
   };
 
@@ -87,7 +95,7 @@ export default function UploadVideo() {
             View Video
           </button>
         )}
-        <button onClick={() => { setDone(false); setForm({ title:'', description:'' }); setVideoFile(null); setThumbnail(null); setThumbPreview(''); setProgress(0); }} className="btn btn-secondary btn-lg">
+        <button onClick={() => { setDone(false); setForm({ title:'', description:'' }); setVideoFile(null); setThumbnail(null); setThumbPreview(''); setProgress(0); setUploadPhase('idle'); }} className="btn btn-secondary btn-lg">
           Upload Another
         </button>
       </div>
@@ -202,7 +210,11 @@ export default function UploadVideo() {
           <div style={{ margin: '20px 0' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
               <span style={{ fontSize: 13, color: 'var(--text-secondary)' }}>
-                {progress < 100 ? 'Uploading…' : 'Processing…'}
+                {uploadPhase === 'processing'
+                  ? 'Processing on server…'
+                  : progress >= 100
+                  ? 'Done!'
+                  : `Uploading… ${progress}%`}
               </span>
               <span style={{ fontSize: 13, color: 'var(--accent)', fontWeight: 600 }}>{progress}%</span>
             </div>
