@@ -179,7 +179,7 @@ const refreshAccessToken=asyncHandler(async(req,res)=>{
     sameSite: "None"
      }
      
-     const {accessToken,newrefreshToken}=await generateAccessTokenAndRefreshToken(user._id)
+     const {accessToken,refreshToken:newrefreshToken}=await generateAcessTokenAndRefreshToken(user._id)
   
      return res
      .status(200)
@@ -243,7 +243,7 @@ const updateAccountDetails=asyncHandler(async(req,res)=>{
         {new:true}
     ).select("-password");
 
-    return res.status(200).json(new ApiResponse(200,updatedUser,"Account details updated successfully"))
+    return res.status(200).json(new ApiResponse(200,user,"Account details updated successfully"))
 
 })
  
@@ -290,7 +290,7 @@ const updateCoverImage=asyncHandler(async(req,res)=>{
         req.user?._id,
         {
             $set:{
-                cover:coverImage.url
+                coverImage:coverImage.url
             }
         },
         {new:true}
