@@ -128,16 +128,15 @@ const publishAVideo = asyncHandler(async (req, res) => {
 
 const getVideoById = asyncHandler(async (req, res) => {
     const { videoId } = req.params
-    //TODO: get video by id
+    const userId = req.user?._id
+
     if (!videoId || !mongoose.Types.ObjectId.isValid(videoId)) {
         throw new ApiError(400, "Valid video ID is required")
     }
 
     const video = await Video.findByIdAndUpdate(
         videoId,
-        {
-            $inc: {views: 1}
-        },
+        { $inc: {views: 1} },
         {new: true}
     ).populate({
         path: "owner",
@@ -146,6 +145,15 @@ const getVideoById = asyncHandler(async (req, res) => {
 
     if (!video) {
         throw new ApiError(404, "Video not found")
+    }
+
+    if (userId) {
+        await User.findByIdAndUpdate(userId, {
+            $pull: { watchHistory: new mongoose.Types.ObjectId(videoId) }
+        })
+        await User.findByIdAndUpdate(userId, {
+            $push: { watchHistory: { $each: [new mongoose.Types.ObjectId(videoId)], $position: 0 } }
+        })
     }
 
     return res.status(200).json(
