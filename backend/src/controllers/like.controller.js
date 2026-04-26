@@ -6,7 +6,6 @@ import {asyncHandler} from "../utils/asyncHandler.js"
 
 const toggleVideoLike = asyncHandler(async (req, res) => {
     const {videoId} = req.params
-    //TODO: toggle like on video
     const userId = req.user?._id
 
     if (!videoId || !mongoose.Types.ObjectId.isValid(videoId)) {
@@ -28,7 +27,7 @@ const toggleVideoLike = asyncHandler(async (req, res) => {
             new ApiResponse(200, {isLiked: false}, "Video like removed")
         )
     } else {
-        const like = await Like.create({
+        await Like.create({
             video: new mongoose.Types.ObjectId(videoId),
             LikedBy: new mongoose.Types.ObjectId(userId)
         })
@@ -40,7 +39,6 @@ const toggleVideoLike = asyncHandler(async (req, res) => {
 
 const toggleCommentLike = asyncHandler(async (req, res) => {
     const {commentId} = req.params
-    //TODO: toggle like on comment
     const userId = req.user?._id
 
     if (!commentId || !mongoose.Types.ObjectId.isValid(commentId)) {
@@ -62,7 +60,7 @@ const toggleCommentLike = asyncHandler(async (req, res) => {
             new ApiResponse(200, {isLiked: false}, "Comment like removed")
         )
     } else {
-        const like = await Like.create({
+        await Like.create({
             comment: new mongoose.Types.ObjectId(commentId),
             LikedBy: new mongoose.Types.ObjectId(userId)
         })
@@ -74,7 +72,6 @@ const toggleCommentLike = asyncHandler(async (req, res) => {
 
 const toggleTweetLike = asyncHandler(async (req, res) => {
     const {tweetId} = req.params
-    //TODO: toggle like on tweet
     const userId = req.user?._id
 
     if (!tweetId || !mongoose.Types.ObjectId.isValid(tweetId)) {
@@ -96,7 +93,7 @@ const toggleTweetLike = asyncHandler(async (req, res) => {
             new ApiResponse(200, {isLiked: false}, "Tweet like removed")
         )
     } else {
-        const like = await Like.create({
+        await Like.create({
             tweet: new mongoose.Types.ObjectId(tweetId),
             LikedBy: new mongoose.Types.ObjectId(userId)
         })
@@ -104,11 +101,9 @@ const toggleTweetLike = asyncHandler(async (req, res) => {
             new ApiResponse(201, {isLiked: true}, "Tweet liked successfully")
         )
     }
-}
-)
+})
 
 const getLikedVideos = asyncHandler(async (req, res) => {
-    //TODO: get all liked videos
     const userId = req.user?._id
 
     if (!userId || !mongoose.Types.ObjectId.isValid(userId)) {
@@ -127,7 +122,7 @@ const getLikedVideos = asyncHandler(async (req, res) => {
                 from: "videos",
                 localField: "video",
                 foreignField: "_id",
-                as: "videoDetails",
+                as: "video",
                 pipeline: [
                     {
                         $lookup: {
@@ -156,12 +151,18 @@ const getLikedVideos = asyncHandler(async (req, res) => {
         },
         {
             $addFields: {
-                videoDetails: {$first: "$videoDetails"}
+                video: {$first: "$video"}
+            }
+        },
+     
+        {
+            $match: {
+                video: {$ne: null}
             }
         },
         {
             $project: {
-                videoDetails: 1,
+                video: 1,
                 createdAt: 1
             }
         },
