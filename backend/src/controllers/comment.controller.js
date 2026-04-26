@@ -5,7 +5,6 @@ import {ApiResponse} from "../utils/ApiResponse.js"
 import {asyncHandler} from "../utils/asyncHandler.js"
 
 const getVideoComments = asyncHandler(async (req, res) => {
-    //TODO: get all comments for a video
     const {videoId} = req.params
     const {page = 1, limit = 10} = req.query
 
@@ -13,7 +12,8 @@ const getVideoComments = asyncHandler(async (req, res) => {
         throw new ApiError(400, "Valid video ID is required")
     }
 
-    const comments = await Comment.aggregate([
+
+    const commentsAggregate = Comment.aggregate([
         {
             $match: {
                 video: new mongoose.Types.ObjectId(videoId)
@@ -55,7 +55,7 @@ const getVideoComments = asyncHandler(async (req, res) => {
         limit: parseInt(limit, 10)
     }
 
-    const result = await Comment.aggregatePaginate(comments, options)
+    const result = await Comment.aggregatePaginate(commentsAggregate, options)
 
     return res.status(200).json(
         new ApiResponse(200, result, "Comments fetched successfully")
@@ -63,7 +63,6 @@ const getVideoComments = asyncHandler(async (req, res) => {
 })
 
 const addComment = asyncHandler(async (req, res) => {
-    // TODO: add a comment to a video
     const {videoId} = req.params
     const {content} = req.body
     const userId = req.user?._id
@@ -99,7 +98,6 @@ const addComment = asyncHandler(async (req, res) => {
 })
 
 const updateComment = asyncHandler(async (req, res) => {
-    // TODO: update a comment
     const {commentId} = req.params
     const {content} = req.body
     const userId = req.user?._id
@@ -143,7 +141,6 @@ const updateComment = asyncHandler(async (req, res) => {
 })
 
 const deleteComment = asyncHandler(async (req, res) => {
-    // TODO: delete a comment
     const {commentId} = req.params
     const userId = req.user?._id
 
@@ -172,5 +169,5 @@ export {
     getVideoComments, 
     addComment, 
     updateComment,
-     deleteComment
-    }
+    deleteComment
+}
