@@ -75,7 +75,7 @@ const PLATFORMS = [
 
 export default function ShareModal({ isOpen, onClose, videoTitle, videoUrl }) {
   const [copied, setCopied] = useState(false);
-  const [activeTab, setActiveTab] = useState('link'); // 'link' | 'platforms'
+  const [activeTab, setActiveTab] = useState('link'); 
   const inputRef = useRef();
   const overlayRef = useRef();
 
