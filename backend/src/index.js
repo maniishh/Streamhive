@@ -9,11 +9,8 @@ dotenv.config({ path: './env' });
 
 connectDB()
   .then(() => {
-    const httpServer = createServer(app);
+    const httpServer = createServer(app);  // ← wrap express in http server
 
-    // ── Socket.io ─────────────────────────────────────────────────────────
-    // allowEIO3: true  — accept older Engine.IO clients
-    // pingTimeout / pingInterval — keep free-tier Render connections alive
     const io = new Server(httpServer, {
       cors: {
         origin: process.env.CORS_ORIGIN
@@ -23,11 +20,9 @@ connectDB()
         credentials: true,
       },
       allowEIO3: true,
-      // These two prevent Render's 30-second idle timeout from killing sockets
       pingTimeout: 25000,
       pingInterval: 10000,
-      // Allow both transports — client starts with polling, upgrades to ws
-      transports: ['polling', 'websocket'],
+      transports: ['polling', 'websocket'],  // polling first — works on Render
     });
 
     initSocket(io);
