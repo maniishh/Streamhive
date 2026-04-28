@@ -4,14 +4,11 @@
   "description": "A backend project",
   "main": "index.js",
   "type": "module",
- "scripts": {
-  "start": "node src/index.js",
-  "dev": "nodemon -r dotenv/config --experimental-json-modules src/index.js"
-},
-  "keywords": [
-    "javascript",
-    "backend"
-  ],
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "nodemon -r dotenv/config --experimental-json-modules src/index.js"
+  },
+  "keywords": ["javascript", "backend"],
   "author": "Manish",
   "license": "ISC",
   "dependencies": {
@@ -24,7 +21,8 @@
     "jsonwebtoken": "^9.0.3",
     "mongoose": "^8.23.0",
     "mongoose-aggregate-paginate-v2": "^1.1.4",
-    "multer": "^2.1.0"
+    "multer": "^2.1.0",
+    "socket.io": "^4.8.1"
   },
   "devDependencies": {
     "nodemon": "^3.1.14",
