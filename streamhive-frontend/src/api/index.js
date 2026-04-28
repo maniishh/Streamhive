@@ -4,27 +4,58 @@ const BASE_URL = import.meta.env.VITE_API_URL + '/api/v1';
 
 export const api = axios.create({
   baseURL: BASE_URL,
-  withCredentials: true, // ✅ ensures cookies are sent automatically
+  withCredentials: true,
 });
-// Auto-refresh on 401
+
+// ── Attach stored access token to every request ──────────────────────────────
+api.interceptors.request.use((config) => {
+  const token = localStorage.getItem('accessToken');
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`;
+  }
+  return config;
+});
+
+// ── Auto-refresh on 401 (deduplicated — only ONE refresh call at a time) ─────
+let refreshPromise = null;
+
 api.interceptors.response.use(
   (res) => res,
   async (error) => {
-    if (error.response?.status === 401 && !error.config._retry) {
-      error.config._retry = true;
+    const originalRequest = error.config;
+
+    // Only attempt refresh on 401, only once per request, and not for the
+    // refresh-token endpoint itself (to avoid infinite loops).
+    if (
+      error.response?.status === 401 &&
+      !originalRequest._retry &&
+      !originalRequest.url?.includes('/users/refresh-token')
+    ) {
+      originalRequest._retry = true;
+
       try {
-        const { data } = await axios.post(`${BASE_URL}/users/refresh-token`, {}, { withCredentials: true });
+        // Deduplicate: if a refresh is already in-flight, wait for it
+        if (!refreshPromise) {
+          refreshPromise = axios
+            .post(`${BASE_URL}/users/refresh-token`, {}, { withCredentials: true })
+            .finally(() => { refreshPromise = null; });
+        }
+
+        const { data } = await refreshPromise;
         const newToken = data?.data?.accessToken;
+
         if (newToken) {
           localStorage.setItem('accessToken', newToken);
-          error.config.headers.Authorization = `Bearer ${newToken}`;
-          return api(error.config);
+          originalRequest.headers.Authorization = `Bearer ${newToken}`;
+          return api(originalRequest);
         }
       } catch {
+        // Refresh failed — clear auth state
         localStorage.removeItem('accessToken');
         window.dispatchEvent(new CustomEvent('auth:logout'));
       }
     }
+
     return Promise.reject(error);
   }
 );
@@ -63,6 +94,9 @@ export const commentAPI = {
   addComment:    (videoId, data) => api.post(`/comments/${videoId}`, data),
   updateComment: (commentId, data) => api.patch(`/comments/c/${commentId}`, data),
   deleteComment: (commentId) => api.delete(`/comments/c/${commentId}`),
+  // ── Replies ──
+  getReplies: (commentId) => api.get(`/comments/replies/${commentId}`),
+  addReply:   (commentId, data) => api.post(`/comments/replies/${commentId}`, data),
 };
 
 /* ── LIKES ── */
@@ -105,21 +139,10 @@ export const dashboardAPI = {
   getVideos: () => api.get('/dashboard/videos'),
 };
 
-/* ── SEARCH (NEW) ── */
+/* ── SEARCH ── */
 export const searchAPI = {
-  /**
-   * Full categorised search.
-   * Returns { query, totalResults, results: { videos, channels, users } }
-   */
-  global: (q, limit = 10) =>
-    api.get('/search', { params: { q, limit } }),
-
-  /**
-   * Lightweight autocomplete suggestions.
-   * Returns { suggestions: { videos, channels } }
-   */
-  suggest: (q, limit = 5) =>
-    api.get('/search/suggest', { params: { q, limit } }),
+  global:  (q, limit = 10) => api.get('/search',         { params: { q, limit } }),
+  suggest: (q, limit = 5)  => api.get('/search/suggest', { params: { q, limit } }),
 };
 
 /* ── HELPERS ── */
@@ -149,3 +172,12 @@ export function timeAgo(dateStr) {
   if (s < 31536000) return `${Math.floor(s/2592000)}mo ago`;
   return `${Math.floor(s/31536000)}y ago`;
 }
+
+/* ── NOTIFICATIONS ── */
+export const notificationAPI = {
+  getAll:       ()   => api.get('/notifications'),
+  markRead:     (id) => api.patch(`/notifications/${id}/read`),
+  markAllRead:  ()   => api.patch('/notifications/read-all'),
+  delete:       (id) => api.delete(`/notifications/${id}`),
+};
+
