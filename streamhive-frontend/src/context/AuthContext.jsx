@@ -9,11 +9,18 @@ export function AuthProvider({ children }) {
 
   const fetchCurrentUser = useCallback(async () => {
     const token = localStorage.getItem('accessToken');
-    if (!token) { setLoading(false); return; }
+    // No token stored → definitely not logged in; skip the API call entirely.
+    // This prevents a 401 → refresh cascade on every cold page load.
+    if (!token) {
+      setLoading(false);
+      return;
+    }
     try {
       const { data } = await authAPI.getCurrentUser();
       setUser(data.data);
     } catch {
+      // Token was invalid or expired and refresh also failed (interceptor
+      // already cleared localStorage). Just ensure we're in a clean state.
       localStorage.removeItem('accessToken');
       setUser(null);
     } finally {
@@ -23,7 +30,11 @@ export function AuthProvider({ children }) {
 
   useEffect(() => {
     fetchCurrentUser();
-    const handler = () => { setUser(null); localStorage.removeItem('accessToken'); };
+
+    const handler = () => {
+      setUser(null);
+      localStorage.removeItem('accessToken');
+    };
     window.addEventListener('auth:logout', handler);
     return () => window.removeEventListener('auth:logout', handler);
   }, [fetchCurrentUser]);
