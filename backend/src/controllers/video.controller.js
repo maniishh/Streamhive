@@ -5,11 +5,25 @@ import {ApiError} from "../utils/ApiError.js"
 import {ApiResponse} from "../utils/ApiResponse.js"
 import {asyncHandler} from "../utils/asyncHandler.js"
 import {uploadOnCloudinary} from "../utils/cloudinary.js"
+import { getCache, setCache, invalidatePattern } from "../utils/redis.js"
 
 
 const getAllVideos = asyncHandler(async (req, res) => {
     const { page = 1, limit = 10, query, sortBy = "createdAt", sortType = "desc", userId } = req.query
-    //TODO: get all videos based on query, sort, pagination
+    
+    // Deterministic Cache Key Generation
+    const cacheKey = sortBy === "views"
+        ? `sh:trending:page:${page}:limit:${limit}:query:${query || ''}:userId:${userId || ''}`
+        : `sh:feed:page:${page}:limit:${limit}:query:${query || ''}:sortBy:${sortBy}:sortType:${sortType}:userId:${userId || ''}`;
+
+    // Return cached data if present
+    const cachedVideos = await getCache(cacheKey);
+    if (cachedVideos) {
+        return res.status(200).json(
+            new ApiResponse(200, cachedVideos, "Videos fetched successfully")
+        );
+    }
+
     const matchStage = {}
 
     if (query) {
@@ -70,6 +84,10 @@ const getAllVideos = asyncHandler(async (req, res) => {
         }
     ])
 
+    // Set cache (10 minutes for trending, 5 minutes for general feed)
+    const ttl = sortBy === "views" ? 600 : 300;
+    await setCache(cacheKey, videos, ttl);
+
     return res.status(200).json(
         new ApiResponse(200, videos, "Videos fetched successfully")
     )
@@ -120,6 +138,10 @@ const publishAVideo = asyncHandler(async (req, res) => {
         path: "owner",
         select: "fullName username avatar"
     })
+
+    // Invalidate feeds and trending caches on new video upload
+    await invalidatePattern("sh:feed:*");
+    await invalidatePattern("sh:trending:*");
 
     return res.status(201).json(
         new ApiResponse(201, createdVideo, "Video published successfully")
@@ -207,6 +229,10 @@ const updateVideo = asyncHandler(async (req, res) => {
         select: "fullName username avatar"
     })
 
+    // Invalidate caches related to video feeds
+    await invalidatePattern("sh:feed:*");
+    await invalidatePattern("sh:trending:*");
+
     return res.status(200).json(
         new ApiResponse(200, updatedVideo, "Video updated successfully")
     )
@@ -236,6 +262,10 @@ const deleteVideo = asyncHandler(async (req, res) => {
     }
 
     await Video.findByIdAndDelete(videoId)
+
+    // Invalidate feeds and trending caches on video deletion
+    await invalidatePattern("sh:feed:*");
+    await invalidatePattern("sh:trending:*");
 
     return res.status(200).json(
         new ApiResponse(200, {}, "Video deleted successfully")
@@ -273,6 +303,10 @@ const togglePublishStatus = asyncHandler(async (req, res) => {
         },
         {new: true}
     )
+
+    // Invalidate feeds and trending caches on publish status toggle
+    await invalidatePattern("sh:feed:*");
+    await invalidatePattern("sh:trending:*");
 
     return res.status(200).json(
         new ApiResponse(200, updatedVideo, "Video publish status toggled successfully")
