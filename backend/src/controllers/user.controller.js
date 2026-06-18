@@ -4,6 +4,7 @@ import {User}  from "../models/user.model.js";
 import {uploadOnCloudinary} from "../utils/cloudinary.js";
 import { ApiResponse } from "../utils/ApiResponse.js";
 import jwt from "jsonwebtoken";
+import { getCache, setCache, invalidatePattern } from "../utils/redis.js";
 
 const generateAcessTokenAndRefreshToken=async(userId)=>{
     try{
@@ -243,6 +244,11 @@ const updateAccountDetails=asyncHandler(async(req,res)=>{
         {new:true}
     ).select("-password");
 
+    // Invalidate user profile cache
+    if (req.user?.username) {
+        await invalidatePattern(`sh:profile:username:${req.user.username.toLowerCase()}:*`);
+    }
+
     return res.status(200).json(new ApiResponse(200,user,"Account details updated successfully"))
 
 })
@@ -270,6 +276,11 @@ const updateUserAvatar=asyncHandler(async(req,res)=>{
         {new:true}
     ).select("-password");
 
+    // Invalidate user profile cache
+    if (req.user?.username) {
+        await invalidatePattern(`sh:profile:username:${req.user.username.toLowerCase()}:*`);
+    }
+
     return res.status(200).json(new ApiResponse(200,user,"Avatar updated successfully"))
 
 })
@@ -296,6 +307,11 @@ const updateCoverImage=asyncHandler(async(req,res)=>{
         {new:true}
     ).select("-password");
 
+    // Invalidate user profile cache
+    if (req.user?.username) {
+        await invalidatePattern(`sh:profile:username:${req.user.username.toLowerCase()}:*`);
+    }
+
     return res.
     status(200).
     json(new ApiResponse(200,user,"Cover image updated successfully"))
@@ -303,13 +319,21 @@ const updateCoverImage=asyncHandler(async(req,res)=>{
 })
 
 const getUserChannelProfile=asyncHandler(async(req,res)=>{
-    //get user id from req.params
-    //find user in db and populate subscriber count and isSubscribed
-    //send response
     const {username}=req.params;
     if(!username){
         throw new ApiError(400,"Username is required")
     }
+
+    // Cache key incorporates username and the requesting user ID to correctly cache isSubscribed status.
+    const cacheKey = `sh:profile:username:${username.toLowerCase()}:user:${req.user?._id || 'anonymous'}`;
+
+    const cachedProfile = await getCache(cacheKey);
+    if (cachedProfile) {
+        return res.status(200).json(
+            new ApiResponse(200, cachedProfile, "Channel profile fetched successfully")
+        );
+    }
+
      const channel=await User.aggregate([
         {
             $match:{
@@ -370,6 +394,10 @@ const getUserChannelProfile=asyncHandler(async(req,res)=>{
      if(!channel || channel.length===0){
         throw new ApiError(404,"Channel not found")
      }
+
+    // Cache user profile for 15 minutes (900 seconds)
+    await setCache(cacheKey, channel[0], 900);
+
     return res
     .status(200)
     .json(new ApiResponse(200,channel[0],"Channel profile fetched successfully"))
@@ -431,4 +459,3 @@ export {
     getUserChannelProfile,
     getWatchHistory
 }
-
