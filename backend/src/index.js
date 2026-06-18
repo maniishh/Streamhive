@@ -4,11 +4,15 @@ import { Server } from 'socket.io';
 import { app } from './app.js';
 import connectDB from './db/index.js';
 import { initSocket } from './utils/socket.js';
+import { initRedis } from './utils/redis.js';
 
 dotenv.config({ path: './env' });
 
 connectDB()
-  .then(() => {
+  .then(async () => {
+    // Initialize Redis Caching Layer
+    await initRedis();
+
     const httpServer = createServer(app);  // ← wrap express in http server
 
     const io = new Server(httpServer, {
