@@ -6,6 +6,7 @@ import {ApiResponse} from "../utils/ApiResponse.js"
 import {asyncHandler} from "../utils/asyncHandler.js"
 import {uploadOnCloudinary} from "../utils/cloudinary.js"
 import { getCache, setCache, invalidatePattern } from "../utils/redis.js"
+import { incrementViewInRedis } from "../utils/viewCounter.js"
 
 
 const getAllVideos = asyncHandler(async (req, res) => {
@@ -156,11 +157,23 @@ const getVideoById = asyncHandler(async (req, res) => {
         throw new ApiError(400, "Valid video ID is required")
     }
 
-    const video = await Video.findByIdAndUpdate(
-        videoId,
-        { $inc: {views: 1} },
-        {new: true}
-    ).populate({
+    // ────────────────────────────────────────────────────────────────────────────
+    // VIEW COUNTING: Optimized with Redis + Cron batch sync
+    // ────────────────────────────────────────────────────────────────────────────
+    // 1. Increment view count in Redis (fast, atomic, ~1ms)
+    // 2. Cron job syncs accumulated views to MongoDB every 5 minutes
+    // 3. Return current DB view count for consistency
+    // ────────────────────────────────────────────────────────────────────────────
+    
+    // Async increment in Redis (don't wait for it - we want fast response)
+    // Views will be synced to MongoDB by the cron job
+    incrementViewInRedis(videoId).catch(err => {
+        console.error(`[VideoController] Failed to increment view in Redis for ${videoId}:`, err.message)
+        // Error logged but not thrown - view counting should not block video delivery
+    })
+
+    // Fetch video from database (returns current synced view count)
+    const video = await Video.findById(videoId).populate({
         path: "owner",
         select: "fullName username avatar"
     })
@@ -169,6 +182,7 @@ const getVideoById = asyncHandler(async (req, res) => {
         throw new ApiError(404, "Video not found")
     }
 
+    // Update user's watch history
     if (userId) {
         await User.findByIdAndUpdate(userId, {
             $pull: { watchHistory: new mongoose.Types.ObjectId(videoId) }

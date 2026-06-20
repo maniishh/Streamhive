@@ -57,6 +57,9 @@ const initRedis = async () => {
         console.error('[Redis] Failed to connect to Redis server during startup:', err.message);
         isRedisConnected = false;
     }
+
+    // Return the client instance for use in other modules
+    return client;
 };
 
 /**
@@ -164,3 +167,4 @@ export {
     invalidatePattern,
     isRedisConnected
 };
+
