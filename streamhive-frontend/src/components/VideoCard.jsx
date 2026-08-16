@@ -51,13 +51,13 @@ export default function VideoCard({ video }) {
             <Link to={`/channel/${owner.username}`} onClick={e => e.stopPropagation()}
               style={{ flexShrink: 0, marginTop: 2 }}>
               {owner.avatar
-                ? <img src={owner.avatar} alt={owner.fullName} className="avatar"
+                ? <img src={owner.avatar} alt={owner.fullname} className="avatar"
                     style={{ width: 34, height: 34 }} />
                 : <div className="avatar" style={{
                     width: 34, height: 34, background: 'var(--accent)',
                     display: 'flex', alignItems: 'center', justifyContent: 'center',
                     fontSize: 13, fontWeight: 700, color: '#07070f',
-                  }}>{owner.fullName?.[0]?.toUpperCase() || '?'}</div>
+                  }}>{owner.fullname?.[0]?.toUpperCase() || '?'}</div>
               }
             </Link>
             <div style={{ flex: 1, minWidth: 0 }}>
@@ -73,7 +73,7 @@ export default function VideoCard({ video }) {
                 onMouseEnter={e => e.currentTarget.style.color = 'var(--accent)'}
                 onMouseLeave={e => e.currentTarget.style.color = 'var(--text-secondary)'}
               >
-                {owner.fullName || owner.username}
+                {owner.fullname || owner.username}
               </Link>
               <p style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>
                 {formatViews(video.views)} views · {timeAgo(video.createdAt)}

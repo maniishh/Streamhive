@@ -187,7 +187,7 @@ export default function NotificationBell() {
                     {notif.sender?.avatar ? (
                       <img
                         src={notif.sender.avatar}
-                        alt={notif.sender.fullName}
+                        alt={notif.sender.fullname}
                         style={{ width: 38, height: 38, borderRadius: '50%', objectFit: 'cover' }}
                       />
                     ) : (
@@ -197,7 +197,7 @@ export default function NotificationBell() {
                         display: 'flex', alignItems: 'center', justifyContent: 'center',
                         fontSize: 16, fontWeight: 700, color: 'var(--accent)',
                       }}>
-                        {notif.sender?.fullName?.[0]?.toUpperCase() ?? '?'}
+                        {notif.sender?.fullname?.[0]?.toUpperCase() ?? '?'}
                       </div>
                     )}
                     {/* Type badge */}
@@ -217,7 +217,7 @@ export default function NotificationBell() {
                   {/* Text */}
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <p style={{ fontSize: 13, color: 'var(--text-primary)', lineHeight: 1.45 }}>
-                      <strong>{notif.sender?.fullName ?? 'Someone'}</strong>{' '}
+                      <strong>{notif.sender?.fullname ?? 'Someone'}</strong>{' '}
                       <span style={{ color: 'var(--text-secondary)' }}>{notif.message}</span>
                     </p>
                     <p style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 3 }}>

@@ -121,13 +121,13 @@ export default function ChannelProfile() {
               fontSize: 32, fontWeight: 800, color: '#07070f', flexShrink: 0,
             }}>
               {channel.avatar
-                ? <img src={channel.avatar} alt={channel.fullName} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                : channel.fullName?.[0]?.toUpperCase()
+                ? <img src={channel.avatar} alt={channel.fullname} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                : channel.fullname?.[0]?.toUpperCase()
               }
             </div>
             <div>
               <h1 style={{ fontFamily: 'Syne', fontSize: 'clamp(20px, 3vw, 28px)', fontWeight: 800 }}>
-                {channel.fullName}
+                {channel.fullname}
               </h1>
               <p style={{ color: 'var(--text-secondary)', fontSize: 14 }}>@{channel.username}</p>
               <div style={{ display: 'flex', gap: 20, marginTop: 6 }}>
@@ -212,10 +212,10 @@ export default function ChannelProfile() {
                       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                           <div className="avatar" style={{ width: 36, height: 36, background: 'var(--bg-elevated)', overflow: 'hidden', display:'flex',alignItems:'center',justifyContent:'center' }}>
-                            {channel.avatar ? <img src={channel.avatar} style={{width:'100%',height:'100%',objectFit:'cover'}}/> : <span style={{color:'var(--accent)',fontWeight:700}}>{channel.fullName?.[0]}</span>}
+                            {channel.avatar ? <img src={channel.avatar} style={{width:'100%',height:'100%',objectFit:'cover'}}/> : <span style={{color:'var(--accent)',fontWeight:700}}>{channel.fullname?.[0]}</span>}
                           </div>
                           <div>
-                            <p style={{ fontWeight: 600, fontSize: 14 }}>{channel.fullName}</p>
+                            <p style={{ fontWeight: 600, fontSize: 14 }}>{channel.fullname}</p>
                             <p style={{ fontSize: 12, color: 'var(--text-muted)' }}>{timeAgo(t.createdAt)}</p>
                           </div>
                         </div>

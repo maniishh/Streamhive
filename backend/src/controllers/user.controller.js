@@ -237,7 +237,7 @@ const updateAccountDetails=asyncHandler(async(req,res)=>{
         req.user?._id,
         {
             $set:{
-                fullName,
+                fullname: fullName,
                 email:email
             }
         },
@@ -379,7 +379,7 @@ const getUserChannelProfile=asyncHandler(async(req,res)=>{
 },
 {
     $project:{
-        fullName:1,
+        fullname:1,
         username:1,
         avatar:1,
         subscriberCount:1,
@@ -426,7 +426,7 @@ const getWatchHistory=asyncHandler(async(req,res)=>{
                             as:"owner",
                             pipeline:[{
                                 $project:{
-                                    fullName:1,
+                                    fullname:1,
                                     username:1,
                                     avatar:1
                                 }

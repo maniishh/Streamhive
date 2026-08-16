@@ -25,7 +25,7 @@ const createTweet = asyncHandler(async (req, res) => {
 
     const createdTweet = await Tweet.findById(tweet._id).populate({
         path: "owner",
-        select: "fullName username avatar"
+        select: "fullname username avatar"
     })
 
     return res.status(201).json(
@@ -45,7 +45,7 @@ const getUserTweets = asyncHandler(async (req, res) => {
         owner: new mongoose.Types.ObjectId(userId)
     }).populate({
         path: "owner",
-        select: "fullName username avatar"
+        select: "fullname username avatar"
     }).sort({createdAt: -1})
 
     return res.status(200).json(
@@ -87,7 +87,7 @@ const updateTweet = asyncHandler(async (req, res) => {
         {new: true}
     ).populate({
         path: "owner",
-        select: "fullName username avatar"
+        select: "fullname username avatar"
     })
 
     return res.status(200).json(

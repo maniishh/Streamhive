@@ -8,7 +8,7 @@ const getNotifications = asyncHandler(async (req, res) => {
   const userId = req.user._id;
 
   const notifications = await Notification.find({ recipient: userId })
-    .populate({ path: "sender", select: "fullName username avatar" })
+    .populate({ path: "sender", select: "fullname username avatar" })
     .sort({ createdAt: -1 })
     .limit(30)
     .lean();
