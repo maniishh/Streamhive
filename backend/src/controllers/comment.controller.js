@@ -12,7 +12,7 @@ async function sendNotification({ recipient, sender, type, message, link }) {
   if (String(recipient) === String(sender)) return   // don't notify yourself
   const doc = await Notification.create({ recipient, sender, type, message, link })
   const populated = await Notification.findById(doc._id)
-    .populate({ path: "sender", select: "fullName username avatar" })
+    .populate({ path: "sender", select: "fullname username avatar" })
     .lean()
   notifyUser(recipient, populated)
 }
@@ -30,7 +30,7 @@ const getVideoComments = asyncHandler(async (req, res) => {
         {
             $lookup: {
                 from: "users", localField: "owner", foreignField: "_id", as: "owner",
-                pipeline: [{ $project: { fullName: 1, username: 1, avatar: 1 } }]
+                pipeline: [{ $project: { fullname: 1, username: 1, avatar: 1 } }]
             }
         },
         { $addFields: { owner: { $first: "$owner" } } },
@@ -58,7 +58,7 @@ const getReplies = asyncHandler(async (req, res) => {
     }
 
     const replies = await Comment.find({ parentComment: commentId })
-        .populate({ path: "owner", select: "fullName username avatar" })
+        .populate({ path: "owner", select: "fullname username avatar" })
         .sort({ createdAt: 1 }).lean()
 
     return res.status(200).json(new ApiResponse(200, replies, "Replies fetched successfully"))
@@ -82,7 +82,7 @@ const addComment = asyncHandler(async (req, res) => {
     })
 
     const createdComment = await Comment.findById(comment._id)
-        .populate({ path: "owner", select: "fullName username avatar" })
+        .populate({ path: "owner", select: "fullname username avatar" })
 
     // Notify video owner
     const video = await Video.findById(videoId).select("owner title")
@@ -120,7 +120,7 @@ const addReply = asyncHandler(async (req, res) => {
     })
 
     const createdReply = await Comment.findById(reply._id)
-        .populate({ path: "owner", select: "fullName username avatar" })
+        .populate({ path: "owner", select: "fullname username avatar" })
 
     // Notify the comment author
     await sendNotification({
@@ -149,7 +149,7 @@ const updateComment = asyncHandler(async (req, res) => {
 
     const updatedComment = await Comment.findByIdAndUpdate(
         commentId, { $set: { content: content.trim() } }, { new: true }
-    ).populate({ path: "owner", select: "fullName username avatar" })
+    ).populate({ path: "owner", select: "fullname username avatar" })
 
     return res.status(200).json(new ApiResponse(200, updatedComment, "Comment updated successfully"))
 })

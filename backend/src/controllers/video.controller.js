@@ -61,7 +61,7 @@ const getAllVideos = asyncHandler(async (req, res) => {
                 pipeline: [
                     {
                         $project: {
-                            fullName: 1,
+                            fullname: 1,
                             username: 1,
                             avatar: 1
                         }
@@ -137,7 +137,7 @@ const publishAVideo = asyncHandler(async (req, res) => {
 
     const createdVideo = await Video.findById(video._id).populate({
         path: "owner",
-        select: "fullName username avatar"
+        select: "fullname username avatar"
     })
 
     // Invalidate feeds and trending caches on new video upload
@@ -175,7 +175,7 @@ const getVideoById = asyncHandler(async (req, res) => {
     // Fetch video from database (returns current synced view count)
     const video = await Video.findById(videoId).populate({
         path: "owner",
-        select: "fullName username avatar"
+        select: "fullname username avatar"
     })
 
     if (!video) {
@@ -240,7 +240,7 @@ const updateVideo = asyncHandler(async (req, res) => {
         {new: true}
     ).populate({
         path: "owner",
-        select: "fullName username avatar"
+        select: "fullname username avatar"
     })
 
     // Invalidate caches related to video feeds

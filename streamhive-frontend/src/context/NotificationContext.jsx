@@ -60,7 +60,7 @@ export function NotificationProvider({ children }) {
 
           if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
             try {
-              new Notification(notif.sender?.fullName ?? 'StreamHive', {
+              new Notification(notif.sender?.fullname ?? 'StreamHive', {
                 body: notif.message,
                 icon: notif.sender?.avatar ?? '/favicon.ico',
                 tag:  notif._id,

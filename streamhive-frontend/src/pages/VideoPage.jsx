@@ -225,13 +225,13 @@ export default function VideoPage() {
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
             <Link to={`/channel/${owner.username}`} style={{ display: 'flex', alignItems: 'center', gap: 10, textDecoration: 'none' }}>
               {owner.avatar
-                ? <img src={owner.avatar} alt={owner.fullName} className="avatar" style={{ width: 42, height: 42 }} />
+                ? <img src={owner.avatar} alt={owner.fullname} className="avatar" style={{ width: 42, height: 42 }} />
                 : <div className="avatar" style={{ width: 42, height: 42, background: 'var(--accent)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, color: '#07070f', fontSize: 16 }}>
-                    {owner.fullName?.[0]?.toUpperCase() || '?'}
+                    {owner.fullname?.[0]?.toUpperCase() || '?'}
                   </div>
               }
               <div>
-                <p style={{ fontWeight: 600, fontSize: 15, color: 'var(--text-primary)' }}>{owner.fullName || owner.username}</p>
+                <p style={{ fontWeight: 600, fontSize: 15, color: 'var(--text-primary)' }}>{owner.fullname || owner.username}</p>
                 <p style={{ fontSize: 12, color: 'var(--text-muted)' }}>@{owner.username}</p>
               </div>
             </Link>
@@ -371,7 +371,7 @@ function CommentItem({ comment, user, editId, editText, setEditId, setEditText, 
       <div style={{ flex: 1, minWidth: 0 }}>
         {/* Name + time */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
-          <span style={{ fontWeight: 600, fontSize: 13, color: 'var(--text-primary)' }}>{cOwner.fullName || cOwner.username || 'User'}</span>
+          <span style={{ fontWeight: 600, fontSize: 13, color: 'var(--text-primary)' }}>{cOwner.fullname || cOwner.username || 'User'}</span>
           <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>{ago(comment.createdAt)}</span>
         </div>
 
@@ -438,7 +438,7 @@ function CommentItem({ comment, user, editId, editText, setEditId, setEditText, 
                   <textarea
                     value={comment._replyDraft}
                     onChange={e => onReplyDraftChange(comment._id, e.target.value)}
-                    placeholder={`Reply to ${cOwner.fullName || cOwner.username || 'comment'}…`}
+                    placeholder={`Reply to ${cOwner.fullname || cOwner.username || 'comment'}…`}
                     rows={2}
                     className="input-field"
                     style={{ resize: 'none', fontSize: 13, minHeight: 44 }}
@@ -486,7 +486,7 @@ function ReplyItem({ reply, onLike }) {
       </Link>
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 3 }}>
-          <span style={{ fontWeight: 600, fontSize: 12, color: 'var(--text-primary)' }}>{rOwner.fullName || rOwner.username || 'User'}</span>
+          <span style={{ fontWeight: 600, fontSize: 12, color: 'var(--text-primary)' }}>{rOwner.fullname || rOwner.username || 'User'}</span>
           <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{ago(reply.createdAt)}</span>
         </div>
         <p style={{ fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.5, wordBreak: 'break-word', marginBottom: 6 }}>
@@ -516,7 +516,7 @@ function RelatedCard({ video }) {
         <p style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)', lineHeight: 1.4, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', marginBottom: 4 }}>
           {video.title}
         </p>
-        <p style={{ fontSize: 12, color: 'var(--text-muted)' }}>{owner.fullName || owner.username}</p>
+        <p style={{ fontSize: 12, color: 'var(--text-muted)' }}>{owner.fullname || owner.username}</p>
         <p style={{ fontSize: 12, color: 'var(--text-muted)' }}>{formatViews(video.views)} views</p>
       </div>
     </Link>

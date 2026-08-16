@@ -62,7 +62,7 @@ const getPlaylistById = asyncHandler(async (req, res) => {
         })
         .populate({
             path: "createdBy",
-            select: "_id fullName username avatar"
+            select: "_id fullname username avatar"
         })
 
     if (!playlist) {
