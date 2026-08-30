@@ -8,6 +8,7 @@ import { initRedis } from './utils/redis.js';
 import { initViewCounter, forceSyncViews } from './utils/viewCounter.js';
 import { initCronJobs, stopCronJobs } from './utils/cron.js';
 
+dotenv.config();
 dotenv.config({ path: './env' });
 
 connectDB()
