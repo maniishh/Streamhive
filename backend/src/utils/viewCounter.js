@@ -1,217 +1,193 @@
-import { Video } from '../models/video.model.js';
-import { getCache, setCache, deleteCache } from './redis.js';
+import { createClient } from 'redis';
 
-let redisClient = null;
-
-/**
- * Initialize the view counter module with a Redis client instance.
- * Called from index.js to pass the Redis client.
- * @param {object} client - Redis client instance
- */
-const initViewCounter = async (client) => {
-  redisClient = client;
-  console.log('[ViewCounter] Initialized with Redis client');
-};
+let client = null;
+let isRedisConnected = false;
+const MAX_RETRY_ATTEMPTS = 5;
 
 /**
- * Atomically increments the view count for a video in Redis.
- * Uses Redis INCR for atomic operation (prevents race conditions).
- * @param {string} videoId - MongoDB ObjectId of the video
- * @returns {Promise<number>} The new view count in Redis
+ * Initializes the Redis client and establishes the connection.
+ * Handles connection errors and offline events gracefully to prevent app crashes.
  */
-const incrementViewInRedis = async (videoId) => {
-  if (!redisClient) {
-    console.warn('[ViewCounter] Redis client not initialized. Falling back to direct MongoDB update.');
-    return null;
-  }
+const initRedis = async () => {
+    const redisUrl = process.env.REDIS_URL;
+    const host = process.env.REDIS_HOST;
+    const port = process.env.REDIS_PORT || 6379;
+    const password = process.env.REDIS_PASSWORD || '';
 
-  try {
-    const key = `views:${videoId}`;
-    const newCount = await redisClient.incr(key);
-    
-    // Set expiration on the key (48 hours) to clean up if sync fails
-    // This prevents infinite accumulation of old counters
-    await redisClient.expire(key, 172800); // 48 hours in seconds
-    
-    return newCount;
-  } catch (error) {
-    console.error(`[ViewCounter] Error incrementing view in Redis for video ${videoId}:`, error.message);
-    return null;
-  }
-};
+    // If neither REDIS_URL nor REDIS_HOST is configured, operate in fallback mode
+    if (!redisUrl && !host && process.env.NODE_ENV === 'production') {
+        console.warn('[Redis] No REDIS_URL or REDIS_HOST provided in production. Operating without Redis caching.');
+        isRedisConnected = false;
+        return null;
+    }
 
-/**
- * Batch sync all accumulated view counts from Redis to MongoDB.
- * Runs periodically (default: every 5 minutes via cron job).
- * 
- * Algorithm:
- * 1. Scan Redis for all keys matching "views:*"
- * 2. For each key, get the accumulated count
- * 3. Perform atomic bulk update to MongoDB
- * 4. Delete the Redis key only after successful sync
- * 5. Log statistics
- * 
- * @returns {Promise<object>} Sync statistics { synced, failed, total }
- */
-const syncViewsToDatabase = async () => {
-  if (!redisClient) {
-    console.warn('[ViewCounter] Redis client not initialized. Cannot sync views.');
-    return { synced: 0, failed: 0, total: 0, timestamp: new Date() };
-  }
+    // Construct connection URL: supports REDIS_URL or credentials if provided
+    let url = redisUrl;
+    if (!url) {
+        const finalHost = host || '127.0.0.1';
+        url = password 
+            ? `redis://:${password}@${finalHost}:${port}`
+            : `redis://${finalHost}:${port}`;
+    }
 
-  const startTime = Date.now();
-  const stats = {
-    synced: 0,
-    failed: 0,
-    total: 0,
-    timestamp: new Date(),
-    duration: 0,
-  };
+    // Mask credentials in log
+    const maskedUrl = url.replace(/:\/\/.*@/, '://***:***@');
+    console.log(`[Redis] Configuring client with URL: ${maskedUrl}`);
 
-  try {
-    console.log('[ViewCounter] Starting batch view sync from Redis to MongoDB...');
-
-    const bulkOps = [];
-    const keysToDelete = [];
-
-    // Scan Redis for all view counter keys efficiently using iterator
-    for await (const key of redisClient.scanIterator({
-      MATCH: 'views:*',
-      COUNT: 100, // Scan in batches of 100 to be memory efficient
-    })) {
-      try {
-        // Extract videoId from key (format: views:${videoId})
-        const videoId = key.split(':')[1];
-        
-        // Get the accumulated view count from Redis
-        const viewCountStr = await redisClient.get(key);
-        const viewCount = parseInt(viewCountStr, 10) || 0;
-
-        if (viewCount > 0) {
-          // Prepare MongoDB bulk update operation
-          bulkOps.push({
-            updateOne: {
-              filter: { _id: videoId },
-              update: { $inc: { views: viewCount } },
-            },
-          });
-
-          // Mark this key for deletion after successful sync
-          keysToDelete.push(key);
-          stats.total += viewCount;
+    client = createClient({
+        url,
+        socket: {
+            reconnectStrategy: (retries) => {
+                if (retries > MAX_RETRY_ATTEMPTS) {
+                    console.warn(`[Redis] Max reconnection attempts (${MAX_RETRY_ATTEMPTS}) reached. Redis is disabled, falling back to direct database operations.`);
+                    isRedisConnected = false;
+                    return false; // Stop reconnecting
+                }
+                const delay = Math.min(retries * 500, 3000);
+                console.warn(`[Redis] Connection lost. Reconnecting in ${delay}ms... (Attempt #${retries}/${MAX_RETRY_ATTEMPTS})`);
+                return delay;
+            }
         }
-      } catch (err) {
-        console.error(`[ViewCounter] Error processing key ${key}:`, err.message);
-        stats.failed++;
-      }
+    });
+
+    // Event Listeners
+    client.on('error', (err) => {
+        console.error(`[Redis] Error occurred:`, err.message);
+        isRedisConnected = false;
+    });
+
+    client.on('connect', () => {
+        console.log('[Redis] Client establishing connection...');
+    });
+
+    client.on('ready', () => {
+        console.log('[Redis] Client connected successfully and ready.');
+        isRedisConnected = true;
+    });
+
+    client.on('end', () => {
+        console.warn('[Redis] Connection closed.');
+        isRedisConnected = false;
+    });
+
+    try {
+        await client.connect();
+    } catch (err) {
+        console.error('[Redis] Failed to connect to Redis server during startup:', err.message);
+        console.warn('[Redis] App will continue in fallback mode without Redis caching.');
+        isRedisConnected = false;
     }
 
-    // Execute bulk updates if there are any operations
-    if (bulkOps.length > 0) {
-      try {
-        const result = await Video.collection.bulkWrite(bulkOps, { ordered: false });
-        stats.synced = result.modifiedCount;
-        console.log(`[ViewCounter] Bulk sync successful: ${result.modifiedCount} videos updated`);
-      } catch (error) {
-        console.error('[ViewCounter] Bulk write error:', error.message);
-        stats.failed = bulkOps.length;
-        stats.synced = 0;
-        // Return early without deleting keys (ensures no data loss)
-        stats.duration = Date.now() - startTime;
-        console.log(
-          `[ViewCounter] Sync completed with failures. Stats:`,
-          stats
-        );
-        return stats;
-      }
-    }
-
-    // Only delete Redis keys AFTER successful MongoDB sync
-    if (keysToDelete.length > 0) {
-      try {
-        await redisClient.del(keysToDelete);
-        console.log(`[ViewCounter] Cleaned up ${keysToDelete.length} Redis keys after sync`);
-      } catch (error) {
-        console.warn(
-          `[ViewCounter] Error deleting Redis keys after sync (data NOT lost):`,
-          error.message
-        );
-        // Don't fail the sync operation if key deletion fails
-        // Views are already in MongoDB
-      }
-    }
-
-    stats.duration = Date.now() - startTime;
-    console.log(
-      `[ViewCounter] Sync completed successfully. Total views synced: ${stats.total}, Duration: ${stats.duration}ms`
-    );
-
-    return stats;
-  } catch (error) {
-    console.error('[ViewCounter] Unexpected error during sync:', error.message);
-    stats.duration = Date.now() - startTime;
-    return stats;
-  }
+    // Return the client instance for use in other modules
+    return client;
 };
 
 /**
- * Get the pending view count for a video from Redis.
- * Useful for monitoring and debugging.
- * @param {string} videoId - MongoDB ObjectId of the video
- * @returns {Promise<number>} Pending view count or 0
+ * Checks if Redis is currently connected and ready.
  */
-const getPendingViews = async (videoId) => {
-  if (!redisClient) return 0;
-  
-  try {
-    const key = `views:${videoId}`;
-    const count = await redisClient.get(key);
-    return parseInt(count, 10) || 0;
-  } catch (error) {
-    console.error(`[ViewCounter] Error getting pending views for ${videoId}:`, error.message);
-    return 0;
-  }
+const isRedisReady = () => {
+    return !!(client && client.isReady && isRedisConnected);
 };
 
 /**
- * Get all pending view counts (for monitoring/debugging).
- * @returns {Promise<object>} Map of { videoId: pendingCount }
+ * Fetches cached value by key.
+ * @param {string} key Cache key
+ * @returns {Promise<any|null>} Parsed value or null on cache miss / Redis failure
  */
-const getAllPendingViews = async () => {
-  if (!redisClient) return {};
-  
-  const pending = {};
-  try {
-    for await (const key of redisClient.scanIterator({
-      MATCH: 'views:*',
-      COUNT: 100,
-    })) {
-      const videoId = key.split(':')[1];
-      const count = await redisClient.get(key);
-      pending[videoId] = parseInt(count, 10) || 0;
+const getCache = async (key) => {
+    if (!isRedisReady()) {
+        return null;
     }
-  } catch (error) {
-    console.error('[ViewCounter] Error getting all pending views:', error.message);
-  }
-  
-  return pending;
+    try {
+        const data = await client.get(key);
+        if (data !== null && data !== undefined) {
+            console.log(`[Redis] [HIT] Key: ${key}`);
+            return JSON.parse(data);
+        }
+        console.log(`[Redis] [MISS] Key: ${key}`);
+        return null;
+    } catch (error) {
+        console.error(`[Redis] Error reading cache key "${key}":`, error.message);
+        return null;
+    }
 };
 
 /**
- * Force sync all views immediately (used for graceful shutdown).
- * @returns {Promise<void>}
+ * Caches a key-value pair with an expiration TTL.
+ * @param {string} key Cache key
+ * @param {any} value Value to store
+ * @param {number} durationInSeconds Cache expiration duration (TTL)
+ * @returns {Promise<boolean>} True if successful, false otherwise
  */
-const forceSyncViews = async () => {
-  console.log('[ViewCounter] Force syncing all pending views...');
-  const stats = await syncViewsToDatabase();
-  console.log('[ViewCounter] Force sync complete:', stats);
+const setCache = async (key, value, durationInSeconds = 3600) => {
+    if (!isRedisReady()) {
+        return false;
+    }
+    try {
+        const serialized = JSON.stringify(value);
+        await client.set(key, serialized, {
+            EX: durationInSeconds
+        });
+        console.log(`[Redis] [SET] Key: ${key} (TTL: ${durationInSeconds}s)`);
+        return true;
+    } catch (error) {
+        console.error(`[Redis] Error setting cache key "${key}":`, error.message);
+        return false;
+    }
+};
+
+/**
+ * Deletes a cached value by key.
+ * @param {string} key Cache key
+ * @returns {Promise<boolean>} True if successful, false otherwise
+ */
+const deleteCache = async (key) => {
+    if (!isRedisReady()) {
+        return false;
+    }
+    try {
+        await client.del(key);
+        console.log(`[Redis] [DEL] Key: ${key}`);
+        return true;
+    } catch (error) {
+        console.error(`[Redis] Error deleting cache key "${key}":`, error.message);
+        return false;
+    }
+};
+
+/**
+ * Invalidates all cached keys matching a specific pattern.
+ * Uses the non-blocking SCAN iterator to prevent thread blockages in production.
+ * @param {string} pattern Glob-style pattern (e.g. "sh:feed:*")
+ * @returns {Promise<boolean>} True if successful, false otherwise
+ */
+const invalidatePattern = async (pattern) => {
+    if (!isRedisReady()) {
+        return false;
+    }
+    try {
+        let deletedCount = 0;
+        for await (const key of client.scanIterator({ MATCH: pattern, COUNT: 100 })) {
+            await client.del(key);
+            deletedCount++;
+        }
+        if (deletedCount > 0) {
+            console.log(`[Redis] [INVALIDATE] Pattern: ${pattern} (Cleared ${deletedCount} keys)`);
+        }
+        return true;
+    } catch (error) {
+        console.error(`[Redis] Error invalidating pattern "${pattern}":`, error.message);
+        return false;
+    }
 };
 
 export {
-  initViewCounter,
-  incrementViewInRedis,
-  syncViewsToDatabase,
-  getPendingViews,
-  getAllPendingViews,
-  forceSyncViews,
+    initRedis,
+    getCache,
+    setCache,
+    deleteCache,
+    invalidatePattern,
+    isRedisReady,
+    isRedisConnected
 };
+
