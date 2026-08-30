@@ -2,30 +2,49 @@ import { createClient } from 'redis';
 
 let client = null;
 let isRedisConnected = false;
+const MAX_RETRY_ATTEMPTS = 5;
 
 /**
  * Initializes the Redis client and establishes the connection.
  * Handles connection errors and offline events gracefully to prevent app crashes.
  */
 const initRedis = async () => {
-    const host = process.env.REDIS_HOST || '127.0.0.1';
+    const redisUrl = process.env.REDIS_URL;
+    const host = process.env.REDIS_HOST;
     const port = process.env.REDIS_PORT || 6379;
     const password = process.env.REDIS_PASSWORD || '';
-    
-    // Construct connection URL: supports credentials if provided
-    const url = password 
-        ? `redis://:${password}@${host}:${port}`
-        : `redis://${host}:${port}`;
 
-    console.log(`[Redis] Configuring client for host ${host}:${port}...`);
+    // If neither REDIS_URL nor REDIS_HOST is configured, operate in fallback mode
+    if (!redisUrl && !host && process.env.NODE_ENV === 'production') {
+        console.warn('[Redis] No REDIS_URL or REDIS_HOST provided in production. Operating without Redis caching.');
+        isRedisConnected = false;
+        return null;
+    }
+
+    // Construct connection URL: supports REDIS_URL or credentials if provided
+    let url = redisUrl;
+    if (!url) {
+        const finalHost = host || '127.0.0.1';
+        url = password 
+            ? `redis://:${password}@${finalHost}:${port}`
+            : `redis://${finalHost}:${port}`;
+    }
+
+    // Mask credentials in log
+    const maskedUrl = url.replace(/:\/\/.*@/, '://***:***@');
+    console.log(`[Redis] Configuring client with URL: ${maskedUrl}`);
 
     client = createClient({
         url,
         socket: {
             reconnectStrategy: (retries) => {
-                // Maximum reconnect delay is 3 seconds
-                const delay = Math.min(retries * 100, 3000);
-                console.warn(`[Redis] Connection lost. Reconnecting in ${delay}ms... (Attempt #${retries})`);
+                if (retries > MAX_RETRY_ATTEMPTS) {
+                    console.warn(`[Redis] Max reconnection attempts (${MAX_RETRY_ATTEMPTS}) reached. Redis is disabled, falling back to direct database operations.`);
+                    isRedisConnected = false;
+                    return false; // Stop reconnecting
+                }
+                const delay = Math.min(retries * 500, 3000);
+                console.warn(`[Redis] Connection lost. Reconnecting in ${delay}ms... (Attempt #${retries}/${MAX_RETRY_ATTEMPTS})`);
                 return delay;
             }
         }
@@ -55,6 +74,7 @@ const initRedis = async () => {
         await client.connect();
     } catch (err) {
         console.error('[Redis] Failed to connect to Redis server during startup:', err.message);
+        console.warn('[Redis] App will continue in fallback mode without Redis caching.');
         isRedisConnected = false;
     }
 
@@ -63,13 +83,19 @@ const initRedis = async () => {
 };
 
 /**
+ * Checks if Redis is currently connected and ready.
+ */
+const isRedisReady = () => {
+    return !!(client && client.isReady && isRedisConnected);
+};
+
+/**
  * Fetches cached value by key.
  * @param {string} key Cache key
  * @returns {Promise<any|null>} Parsed value or null on cache miss / Redis failure
  */
 const getCache = async (key) => {
-    if (!client || !isRedisConnected) {
-        console.warn(`[Redis] [Bypassed] Cache GET failed (Redis disconnected) for key: ${key}`);
+    if (!isRedisReady()) {
         return null;
     }
     try {
@@ -94,8 +120,7 @@ const getCache = async (key) => {
  * @returns {Promise<boolean>} True if successful, false otherwise
  */
 const setCache = async (key, value, durationInSeconds = 3600) => {
-    if (!client || !isRedisConnected) {
-        console.warn(`[Redis] [Bypassed] Cache SET failed (Redis disconnected) for key: ${key}`);
+    if (!isRedisReady()) {
         return false;
     }
     try {
@@ -117,8 +142,7 @@ const setCache = async (key, value, durationInSeconds = 3600) => {
  * @returns {Promise<boolean>} True if successful, false otherwise
  */
 const deleteCache = async (key) => {
-    if (!client || !isRedisConnected) {
-        console.warn(`[Redis] [Bypassed] Cache DEL failed (Redis disconnected) for key: ${key}`);
+    if (!isRedisReady()) {
         return false;
     }
     try {
@@ -138,13 +162,11 @@ const deleteCache = async (key) => {
  * @returns {Promise<boolean>} True if successful, false otherwise
  */
 const invalidatePattern = async (pattern) => {
-    if (!client || !isRedisConnected) {
-        console.warn(`[Redis] [Bypassed] Cache Invalidation failed (Redis disconnected) for pattern: ${pattern}`);
+    if (!isRedisReady()) {
         return false;
     }
     try {
         let deletedCount = 0;
-        // Use scanIterator for memory efficiency and non-blocking key discovery
         for await (const key of client.scanIterator({ MATCH: pattern, COUNT: 100 })) {
             await client.del(key);
             deletedCount++;
@@ -165,6 +187,7 @@ export {
     setCache,
     deleteCache,
     invalidatePattern,
+    isRedisReady,
     isRedisConnected
 };
 
